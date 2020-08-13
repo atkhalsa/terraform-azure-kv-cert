@@ -80,6 +80,44 @@ resource "azurerm_key_vault_access_policy" "rg" {
   ]
 }
 
+resource "azurerm_key_vault_access_policy" "billing" {
+  key_vault_id = azurerm_key_vault.rg.id
+
+  tenant_id = data.azurerm_client_config.current.tenant_id
+  object_id = azuread_service_principal.billing.id
+  
+  certificate_permissions = [
+    "get",
+    "getissuers",
+    "list",
+    "listissuers",
+  ]
+
+  key_permissions = [
+    "create",
+    "update",
+    "decrypt",
+    "encrypt",
+    "get",
+    "list",
+    "sign",
+    "verify",
+  ]
+
+  secret_permissions = [
+    "get",
+    "list",
+  ]
+
+  storage_permissions = [
+    "get",
+    "getsas",
+    "set",
+    "setsas",
+    "update"
+  ]
+}
+
 resource "azurerm_key_vault_certificate" "rg" {
   name         = "${var.environment}-generated-cert"
   key_vault_id = azurerm_key_vault.rg.id
@@ -125,11 +163,7 @@ resource "azurerm_key_vault_certificate" "rg" {
         "keyEncipherment",
       ]
 
-      subject_alternative_names {
-        dns_names = ["*.attinder.com"]
-      }
-
-      subject            = "CN=attinder.com"
+      subject            = "CN=${var.serviceName}-${var.environment}"
       validity_in_months = 24
     }
   }
@@ -180,19 +214,34 @@ data "azurerm_storage_account_sas" "rg" {
 }
 
 resource "azurerm_key_vault_secret" "sastoken" {
-  name         = "${var.environment}-generated-sastoken"
-  key_vault_id = azurerm_key_vault.rg.id
-  value = data.azurerm_storage_account_sas.rg.sas
+  name          = "${var.environment}-generated-sastoken"
+  key_vault_id  = azurerm_key_vault.rg.id
+  value         = data.azurerm_storage_account_sas.rg.sas
 
   tags = {
     environment = var.environment
-    service = var.serviceName
+    service     = var.serviceName
   }
 }
 
 # Download the secret in the correct format to upload back to Az Batch. This is work around as azurerm_key_vault_certificate is getting back hex string
-data "azurerm_key_vault_secret" "cert-base64" {
-  name         = "${var.environment}-generated-cert"
-  key_vault_id = azurerm_key_vault.rg.id
-  depends_on = [azurerm_key_vault_certificate.rg]
-}
+# data "azurerm_key_vault_secret" "cert-base64" {
+#   name          = "${var.environment}-generated-cert"
+#   key_vault_id  = azurerm_key_vault.rg.id
+#   depends_on    = [azurerm_key_vault_certificate.rg]
+# }
+
+# data "azurerm_key_vault_certificate" "cert" {
+#   name          = "${var.environment}-generated-cert"
+#   key_vault_id  = azurerm_key_vault.rg.id
+#   depends_on    = [azurerm_key_vault_certificate.rg]
+# }
+
+# there is limitation and issue related to it https://github.com/terraform-providers/terraform-provider-azurerm/issues/8072
+# resource "azuread_application_certificate" "billing" {
+#   depends_on            = [azurerm_key_vault_certificate.rg]
+#   application_object_id = azuread_application.billing.id
+#   type                  = "AsymmetricX509Cert"
+#   value                 = data.azurerm_key_vault_secret.cert-base64.value
+#   end_date              = azurerm_key_vault_certificate.rg.certificate_attribute.0.expires
+# }

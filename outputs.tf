@@ -1,3 +1,11 @@
+output "ad-application-id" {
+  value = azuread_application.billing.application_id
+}
+
+output "ad-application-object-id" {
+  value = azuread_application.billing.id
+}
+
 output "az-storage-account-id" {
   value = azurerm_storage_account.rg.id
 }
@@ -14,6 +22,6 @@ output "sas_url_query_string" {
   value = data.azurerm_storage_account_sas.rg.sas
 }
 
-output "client_cert" {
-  value = data.azurerm_key_vault_secret.cert-base64.value
-}
+# output "client_cert_data" {
+#   value = data.azurerm_key_vault_certificate.cert
+# }
