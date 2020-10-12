@@ -85,7 +85,7 @@ resource "azurerm_key_vault_access_policy" "billing" {
 
   tenant_id = data.azurerm_client_config.current.tenant_id
   object_id = azuread_service_principal.billing.id
-  
+
   certificate_permissions = [
     "get",
     "getissuers",
@@ -199,7 +199,7 @@ data "azurerm_storage_account_sas" "rg" {
   }
 
   start  =  var.sas_token_startdate #timestamp()
-  expiry = timeadd(var.sas_token_startdate, "${30 * 24 * 2}h")  #60 days
+  expiry = timeadd(var.sas_token_startdate, "${90 * 24 * 2}h")  #60 days
 
   permissions {
     read    = true
@@ -213,14 +213,42 @@ data "azurerm_storage_account_sas" "rg" {
   }
 }
 
-resource "azurerm_key_vault_secret" "sastoken" {
-  name          = "${var.environment}-generated-sastoken"
-  key_vault_id  = azurerm_key_vault.rg.id
-  value         = data.azurerm_storage_account_sas.rg.sas
+# resource "azurerm_key_vault_secret" "sastoken" {
+#   name          = "${var.environment}-generated-sastoken"
+#   key_vault_id  = azurerm_key_vault.rg.id
+#   value         = data.azurerm_storage_account_sas.rg.sas
 
-  tags = {
-    environment = var.environment
-    service     = var.serviceName
+#   tags = {
+#     environment = var.environment
+#     service     = var.serviceName
+#   }
+# }
+
+resource "azurerm_role_assignment" "kv" {
+  scope                = data.azurerm_subscription.primary.id
+  role_definition_name = "Storage Account Key Operator Service Role"
+  principal_id         = "2bfda482-2bd7-4bce-ba28-c6031653846d"
+}
+
+# az keyvault storage add --vault-name <YourKeyVaultName> -n <YourStorageAccountName> --active-key-name key1 --auto-regenerate-key --regeneration-period P90D --resource-id "/subscriptions/<subscriptionID>/resourceGroups/<StorageAccountResourceGroupName>/providers/Microsoft.Storage/storageAccounts/<YourStorageAccountName>"
+
+# resource "azurerm_key_vault_managed_storage_account" "kv" {
+#   # scope                = data.azurerm_subscription.primary.id
+#   # role_definition_name = "Storage Account Key Operator Service Role"
+#   # principal_id         = "2bfda482-2bd7-4bce-ba28-c6031653846d"
+# }
+
+resource "null_resource" "kv" {
+  depends_on = [azurerm_key_vault_access_policy.rg, azurerm_storage_account.rg]
+  provisioner "local-exec" {
+    command = "az keyvault storage add --vault-name ${azurerm_key_vault.rg.name} -n ${azurerm_storage_account.rg.name} --active-key-name key1 --auto-regenerate-key --regeneration-period P90D --resource-id \"${data.azurerm_subscription.primary.id}/resourceGroups/${azurerm_resource_group.rg.name}/providers/Microsoft.Storage/storageAccounts/${azurerm_storage_account.rg.name}\" > kvstorage.txt"
+  }
+}
+
+resource "null_resource" "kvssasdef" {
+  depends_on = [azurerm_key_vault_access_policy.rg, azurerm_storage_account.rg, data.azurerm_storage_account_sas.rg]
+  provisioner "local-exec" {
+    command = "az keyvault storage sas-definition create --vault-name ${azurerm_key_vault.rg.name} --account-name ${azurerm_storage_account.rg.name} -n storagesecret --validity-period P90D --sas-type account --template-uri \"${data.azurerm_storage_account_sas.rg.sas}\" > kvstoragesas.txt"
   }
 }
 

@@ -10,6 +10,9 @@ provider "azuread" {
   version = "=0.11.0"
 }
 
+data "azurerm_subscription" "primary" {
+}
+
 # Create an application
 resource "azuread_application" "billing" {
   name = "${var.serviceName}-${var.environment}"

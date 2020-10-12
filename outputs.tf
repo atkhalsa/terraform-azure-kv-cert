@@ -22,6 +22,10 @@ output "sas_url_query_string" {
   value = data.azurerm_storage_account_sas.rg.sas
 }
 
-# output "client_cert_data" {
-#   value = data.azurerm_key_vault_certificate.cert
-# }
+output "execout" {
+  value = null_resource.kv
+}
+
+output "execout-kvssasdef" {
+  value = null_resource.kvssasdef
+}
